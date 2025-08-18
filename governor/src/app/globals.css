@@ -1,0 +1,46 @@
+@reference "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #ffffff;
+  --card: #f8fafc;
+  --muted: #64748b;
+  --border: #e2e8f0;
+}
+
+body {
+  background: #ffffff;
+  color: #000000;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.container {
+  @apply max-w-[72rem] mx-auto px-4;
+}
+
+.card {
+  background: var(--card);
+  @apply rounded-xl p-6 shadow-sm border border-gray-200;
+}
+
+.input {
+  @apply bg-white border border-gray-300 rounded-lg px-4 py-3 w-full text-sm text-black placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all;
+}
+
+.btn {
+  @apply inline-flex items-center gap-2 bg-white border border-black text-black px-5 py-3 rounded-lg text-sm font-medium shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all;
+}
+
+.btn-outline {
+  @apply inline-flex items-center gap-2 border border-gray-300 bg-white px-5 py-3 rounded-lg text-sm font-medium text-black hover:bg-gray-50 transition-all;
+}
+
+.btn-danger {
+  @apply inline-flex items-center gap-2 bg-white border border-red-500 text-black px-5 py-3 rounded-lg text-sm font-medium shadow-sm hover:bg-red-50 transition-all;
+}
+
+.label {
+  @apply text-sm font-medium text-black mb-1 block;
+}

@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: Softphone Governor API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /configs:
+    get:
+      summary: List softphone configs
+      description: Returns a map of configId -> SoftphoneConfig
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/SoftphoneConfig"
+        "500": { description: Server error }
+        
+
+
+  /to_tomoru/integrations/phone:
+    post:
+      summary: Receive softphone signal and forward to Tomoru
+      description: Softphone posts back conversation signals here
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignalPayload" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SignalResponse" }
+        "400": { description: Bad request }
+        "500": { description: Server error }
+
+  /softphone/advise_on_incoming_call:
+    get:
+      summary: Advise configs for an incoming phone
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  format: uuid
+        "500": { description: Server error }
+
+  /softphone_log:
+    post:
+      summary: Log dialing events from softphone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SoftphoneLogPayload" }
+      responses:
+        "200": { description: OK }
+
+components:
+  schemas:
+    SoftphoneConfig:
+      type: object
+      required: [authenticationId, registerPassword]
+      properties:
+        authenticationId: { type: string }
+        registerPassword: { type: string }
+        # hostUri and proxyUri are flattened; model compactly here:
+        hostUri:
+          oneOf:
+            - type: object
+              required: [hostUri]
+              properties: { hostUri: { type: string } }
+            - type: object
+              required: [domainHost, domainPort]
+              properties:
+                domainHost: { type: string }
+                domainPort: { type: integer }
+        proxyUri:
+          oneOf:
+            - type: object
+              required: [proxyUri]
+              properties: { proxyUri: { type: string } }
+            - type: object
+              required: [proxy]
+              properties:
+                proxy:
+                  type: object
+                  required: [host, port]
+                  properties:
+                    host: { type: string }
+                    port: { type: integer }
+        authenticationUri: { type: string, nullable: true }
+        registerRefresh: { type: integer, default: 300 }
+        callerId: { type: string, nullable: true }
+        settings:
+          type: object
+          properties:
+            maxConcurrentCalls: { type: integer, nullable: true }
+            vad:
+              {
+                type: string,
+                enum: [algorithmic, streaming],
+                default: algorithmic,
+              }
+            language: { type: string }
+            synthesisService:
+              {
+                type: string,
+                enum: [yandex, google, elevenLabs],
+                default: yandex,
+              }
+            cps: { type: integer, default: 7 }
+            additionalRecognitionTime: { type: integer, default: 0 }
+            yandexSubaccount:
+              type: object
+              nullable: true
+              properties:
+                folderId: { type: string }
+                serviceAccountId: { type: string }
+                serviceAccountKeyId: { type: string }
+                pemKey: { type: string }
+            elevenlabsVoice: { type: string, nullable: true }
+            phoneValidationEnabled: { type: boolean, default: true }
+            use8InsteadOfPlus7: { type: boolean, default: false }
+            endpoints:
+              type: object
+              nullable: true
+              properties:
+                schedulerUrl: { type: string, format: uri }
+                backendUrl: { type: string, format: uri }
+            useIpTrunk: { type: boolean, nullable: true }
+            portRange:
+              type: object
+              properties:
+                start: { type: integer, default: 50000 }
+                end: { type: integer, default: 55000 }
+            stunServer: { type: string, nullable: true }
+
+    Signal:
+      type: object
+      oneOf:
+        - type: object
+          properties:
+            type: { type: string, enum: [new_user_phrase] }
+            messageId: { type: string }
+            message: { type: string }
+            audioUrl: { type: string, nullable: true }
+            interruptedMessageId: { type: string, nullable: true }
+          required: [type, messageId, message]
+        - type: object
+          properties:
+            type: { type: string, enum: [event] }
+            direction: { type: string, enum: [Incoming, Outgoing] }
+            eventType: { type: string, enum: [call_start, call_end] }
+          required: [type, direction, eventType]
+        - type: object
+          properties:
+            type: { type: string, enum: [message_delivered] }
+            deliveryDate:
+              type: object
+              properties:
+                start: { type: string }
+                end: { type: string }
+            messageId: { type: string }
+            # message payload omitted for brevity
+          required: [type, deliveryDate, messageId]
+
+    SignalPayload:
+      type: object
+      properties:
+        date: { type: string }
+        configId: { type: string, format: uuid }
+        phone: { type: string }
+        taskId: { type: integer, nullable: true }
+      required: [date, configId, phone]
+      allOf:
+        - type: object
+          properties:
+            # flattened union
+            signal: { $ref: "#/components/schemas/Signal" }
+          required: [signal]
+
+    SignalResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        dialogId: { type: string, nullable: true }
+
+    SoftphoneLogPayload:
+      type: object
+      properties:
+        task_id: { type: integer }
+        timestamp: { type: string, format: date-time }
+        event:
+          oneOf:
+            - type: object
+              properties:
+                DialStarted: { type: object }
+            - type: object
+              properties:
+                DialEnded:
+                  type: object
+                  properties:
+                    result:
+                      oneOf:
+                        - type: string
+                          enum: [Success, Timeout, Forbidden, WrongSdp]
+                        - type: object
+                          properties:
+                            {
+                              Failure:
+                                {
+                                  type: object,
+                                  properties: { code: { type: integer } },
+                                  required: [code],
+                                },
+                            }
+      required: [task_id, timestamp, event]

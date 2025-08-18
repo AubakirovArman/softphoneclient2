@@ -1,0 +1,585 @@
+openapi: 3.0.3
+info:
+  title: Softphone API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema: { type: string }
+    post:
+      summary: Send
+      description: "Корневой POST / — отправка команды (основной вход). Этот эндпоинт принимает разные типы по полю type." 
+      security:
+        - QuerySecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatIntegrationMessage"
+      responses:
+        "200":
+          description: Accepted
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatIntegrationError"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+    QuerySecret:
+      type: apiKey
+      in: query
+      name: secret
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+    BotMessage:
+      oneOf:
+        - type: object
+          required: [text]
+          properties: { text: { type: string } }
+        - type: object
+          required: [url]
+          properties: { url: { type: string, format: uri } }
+        - type: object
+          required: [template]
+          properties:
+            template:
+              type: object
+              required:
+                [
+                  template,
+                  originalTextVariables,
+                  originalAudioVariables,
+                  currentTextVariables,
+                  audioSource,
+                ]
+              properties:
+                template: { type: string }
+                originalTextVariables:
+                  type: array
+                  items: { $ref: "#/components/schemas/TextVariable" }
+                originalAudioVariables:
+                  type: array
+                  items: { $ref: "#/components/schemas/AudioVariable" }
+                currentTextVariables:
+                  type: array
+                  items: { $ref: "#/components/schemas/TextVariable" }
+                audioSource: { type: string, format: uri }
+        - type: object
+          required: [dtmf, repeatCount]
+          properties:
+            dtmf: { type: string }
+            repeatCount:
+              { type: integer, format: int32, minimum: 0, maximum: 255 }
+    TextVariable:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string }
+        value: { type: string }
+    AudioVariable:
+      type: object
+      required: [name, startMs, lengthMs]
+      properties:
+        name: { type: string }
+        startMs: { type: integer }
+        lengthMs: { type: integer }
+    SayInterruptionWindowBorder:
+      oneOf:
+        - type: object
+          properties: { time: { type: integer } }
+          required: [time]
+        - type: object
+          properties: { fraction: { type: number } }
+          required: [fraction]
+    SayInterruptionWindow:
+      type: object
+      required: [start, end]
+      properties:
+        start: { $ref: "#/components/schemas/SayInterruptionWindowBorder" }
+        end: { $ref: "#/components/schemas/SayInterruptionWindowBorder" }
+    SayPayload:
+      type: object
+      required: [type, configId, phone, message, messageId]
+      properties:
+        type: { type: string, enum: ["say"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+        phone: { type: string }
+        message: { $ref: "#/components/schemas/BotMessage" }
+        messageId: { type: string }
+        taskId: { type: integer, format: int32, nullable: true }
+        dialogId: { type: string, nullable: true }
+        interruptionWindow:
+          { $ref: "#/components/schemas/SayInterruptionWindow" }
+    HangUpPayload:
+      type: object
+      required: [type, configId, phone]
+      properties:
+        type: { type: string, enum: ["hangUp"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+        phone: { type: string }
+        taskId: { type: integer, format: int32, nullable: true }
+        dialogId: { type: string, nullable: true }
+    ClearQueuePayload:
+      type: object
+      required: [type, configId]
+      properties:
+        type: { type: string, enum: ["clearQueue"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+    DtmfPayload:
+      type: object
+      required: [type, configId, phone, dtmf, repeatCount]
+      properties:
+        type: { type: string, enum: ["dtmf"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+        phone: { type: string }
+        dtmf: { type: string }
+        repeatCount: { type: integer, format: int32 }
+    TransferPayload:
+      type: object
+      required: [type, configId, phone, targetUri]
+      properties:
+        type: { type: string, enum: ["transfer"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+        phone: { type: string }
+        targetUri: { type: string }
+        referredBy: { type: string, nullable: true }
+    HostUri:
+      oneOf:
+        - type: object
+          required: [hostUri]
+          properties: { hostUri: { type: string } }
+        - type: object
+          required: [domainHost, domainPort]
+          properties:
+            domainHost: { type: string }
+            domainPort: { type: integer }
+    ProxyUri:
+      oneOf:
+        - type: object
+          required: [proxyUri]
+          properties: { proxyUri: { type: string } }
+        - type: object
+          required: [proxy]
+          properties:
+            proxy:
+              type: object
+              required: [host, port]
+              properties:
+                host: { type: string }
+                port: { type: integer }
+    SoftphoneSettings:
+      type: object
+      properties:
+        maxConcurrentCalls: { type: integer, nullable: true }
+        vad:
+          { type: string, enum: [algorithmic, streaming], default: algorithmic }
+        language:
+          { type: string, description: "IETF code e.g. ru-RU", default: ru-RU }
+        synthesisService:
+          { type: string, enum: [yandex, google, elevenLabs], default: yandex }
+        cps: { type: integer, default: 7 }
+        additionalRecognitionTime: { type: integer, default: 0 }
+        yandexSubaccount:
+          type: object
+          nullable: true
+          properties:
+            folderId: { type: string }
+            serviceAccountId: { type: string }
+            serviceAccountKeyId: { type: string }
+            pemKey: { type: string }
+        elevenlabsVoice: { type: string, nullable: true }
+        phoneValidationEnabled: { type: boolean, default: true }
+        use8InsteadOfPlus7: { type: boolean, default: false }
+        endpoints:
+          type: object
+          nullable: true
+          properties:
+            schedulerUrl: { type: string, format: uri }
+            backendUrl: { type: string, format: uri }
+        useIpTrunk: { type: boolean, nullable: true }
+        portRange:
+          type: object
+          properties:
+            start: { type: integer, default: 50000 }
+            end: { type: integer, default: 55000 }
+        stunServer: { type: string, nullable: true }
+    SoftphoneConfig:
+      type: object
+      required: [authenticationId, registerPassword]
+      properties:
+        authenticationId: { type: string }
+        registerPassword: { type: string }
+        authenticationUri: { type: string, nullable: true }
+        registerRefresh: { type: integer, default: 300 }
+        callerId: { type: string, nullable: true }
+        # hostUri and proxyUri are flattened oneOfs
+        hostUri: { $ref: "#/components/schemas/HostUri" }
+        proxyUri: { $ref: "#/components/schemas/ProxyUri" }
+        # settings is flattened in Rust; here kept as nested for clarity
+        settings: { $ref: "#/components/schemas/SoftphoneSettings" }
+    SetConfigPayload:
+      type: object
+      required: [type, configId, config]
+      properties:
+        type: { type: string, enum: ["setConfig"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+        config: { $ref: "#/components/schemas/SoftphoneConfig" }
+    RemoveConfigPayload:
+      type: object
+      required: [type, configId]
+      properties:
+        type: { type: string, enum: ["removeConfig"] }
+        configId: { $ref: "#/components/schemas/Uuid" }
+    ChatIntegrationError:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          enum:
+            [
+              timeout,
+              abort,
+              forbidden,
+              failedToLookupHost,
+              invalidAuthId,
+              unexpectedStatus,
+              networkFault,
+            ]
+    ChatIntegrationMessage:
+      oneOf:
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/SayPayload" }]
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/HangUpPayload" }]
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/SetConfigPayload" }]
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/RemoveConfigPayload" }]
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/ClearQueuePayload" }]
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/DtmfPayload" }]
+        - type: object
+          allOf: [{ $ref: "#/components/schemas/TransferPayload" }]
+
+paths:
+  /:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema: { type: string }
+    post:
+      summary: Send chat integration command to softphone
+      description: |
+        Корневой POST / — отправка команды (основной вход).
+        Этот эндпоинт принимает JSON с полем "type" и поддерживает команды:
+        - "say" — озвучить текст/аудио (и инициировать исходящий, если звонка нет)
+        - "hangUp" — повесить трубку
+        - "setConfig" — зарегистрировать/обновить SIP-конфиг
+        - "removeConfig" — удалить SIP-конфиг
+        - "clearQueue" — очистить очередь исходящих
+        - "dtmf" — отправить DTMF
+        - "transfer" — перевести звонок
+
+        Ответы:
+        - 200 Accepted — команда принята к выполнению
+        - 400 Bad Request — тело ошибки ChatIntegrationError с кодом: timeout | abort | forbidden | failedToLookupHost | invalidAuthId | unexpectedStatus | networkFault
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChatIntegrationMessage" }
+            examples:
+              say_text:
+                summary: Проиграть текст (и инициировать исходящий при отсутствии звонка)
+                value:
+                  type: say
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  phone: "+77011234567"
+                  messageId: "m-bot-0001"
+                  message: { text: "Привет! Вы позвонили в поддержку." }
+                  dialogId: "dlg-abc123"
+              say_url:
+                summary: Проиграть аудио по ссылке
+                value:
+                  type: say
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  phone: "+77011234567"
+                  messageId: "m-bot-0002"
+                  message: { url: "https://example.com/hello.wav" }
+              say_template:
+                summary: Шаблон (TTS + переменные + источник аудио)
+                value:
+                  type: say
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  phone: "+77011234567"
+                  messageId: "m-bot-0003"
+                  message:
+                    template:
+                      template: "Здравствуйте, {{name}}"
+                      originalTextVariables: [{ name: "name", value: "Иван" }]
+                      originalAudioVariables: [{ name: "beep", startMs: 0, lengthMs: 300 }]
+                      currentTextVariables: [{ name: "name", value: "Иван" }]
+                      audioSource: "https://example.com/base_audio.wav"
+              hang_up:
+                summary: Завершить звонок
+                value:
+                  type: hangUp
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  phone: "+77011234567"
+              dtmf:
+                summary: Отправить DTMF-последовательность
+                value:
+                  type: dtmf
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  phone: "+77011234567"
+                  dtmf: "123#"
+                  repeatCount: 1
+              transfer:
+                summary: Перевести звонок
+                value:
+                  type: transfer
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  phone: "+77011234567"
+                  targetUri: "tel:+78005553535"
+              set_config:
+                summary: Создать/обновить SIP-конфиг
+                value:
+                  type: setConfig
+                  configId: "11111111-1111-1111-1111-111111111111"
+                  config:
+                    authenticationId: "1001"
+                    registerPassword: "S3cret!"
+                    hostUri: { hostUri: "sip.my-voip.com" }
+                    callerId: "+77010001122"
+                    settings:
+                      language: "ru-RU"
+                      synthesisService: "yandex"
+                      vad: "algorithmic"
+                      maxConcurrentCalls: 1
+              remove_config:
+                summary: Удалить SIP-конфиг
+                value:
+                  type: removeConfig
+                  configId: "11111111-1111-1111-1111-111111111111"
+              clear_queue:
+                summary: Очистить очередь исходящих задач
+                value:
+                  type: clearQueue
+                  configId: "11111111-1111-1111-1111-111111111111"
+      responses:
+        "200": { description: Accepted }
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatIntegrationError" }
+
+  /status:
+    get:
+      summary: Status HTML for a config
+      description: "Короткая HTML-страница со статусом выбранного конфига."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema: { $ref: "#/components/schemas/Uuid" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl "http://SOFTPHONE_IP:8080/status?secret=SECRET&config_id=11111111-1111-1111-1111-111111111111"
+      responses:
+        "200":
+          description: Status HTML
+          content:
+            text/html:
+              schema: { type: string }
+              example: "OK"
+
+  /clear_queue:
+    get:
+      summary: Clear queued calls for a config
+      description: "Очистить очередь исходящих (эквивалент команды type=clearQueue по корневому POST). Возвращает краткий текст."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema: { $ref: "#/components/schemas/Uuid" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl "http://SOFTPHONE_IP:8080/clear_queue?secret=SECRET&config_id=11111111-1111-1111-1111-111111111111"
+      responses:
+        "200":
+          description: Result text
+          content:
+            text/html:
+              schema: { type: string }
+              example: "Queue cleared"
+
+  /list_audio:
+    get:
+      summary: List stored audio files for a config
+      description: "Список имён файлов (строки) для данного configId."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema: { $ref: "#/components/schemas/Uuid" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl "http://SOFTPHONE_IP:8080/list_audio?secret=SECRET&config_id=11111111-1111-1111-1111-111111111111"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { type: string } }
+              example: ["hello.wav", "beep.wav"]
+        "400": { description: Not found }
+
+  /audio:
+    post:
+      summary: Upload a WAV file for a config
+      description: "Загрузка WAV-файла (raw body: application/octet-stream)."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema: { $ref: "#/components/schemas/Uuid" }
+        - in: query
+          name: file_name
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -X POST "http://SOFTPHONE_IP:8080/audio?secret=SECRET&config_id=11111111-1111-1111-1111-111111111111&file_name=hello.wav" \
+                 -H "Content-Type: application/octet-stream" --data-binary "@hello.wav"
+      responses:
+        "200": { description: Uploaded }
+        "400": { description: Bad WAV / Not a WAV }
+        "500": { description: Filesystem error }
+    delete:
+      summary: Delete all audio for a config
+      description: "Удалить все аудио для конфига."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema: { $ref: "#/components/schemas/Uuid" }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -X DELETE "http://SOFTPHONE_IP:8080/audio?secret=SECRET&config_id=11111111-1111-1111-1111-111111111111"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { deleted: { type: integer } }
+              example: { deleted: 2 }
+        "400": { description: Not found }
+
+  /reload_sips:
+    post:
+      summary: Reload SIP configs (optional filter)
+      description: "Перечитать/перерегистрировать SIP-конфиги (можно указать фильтр строкой). Возвращает текстовый результат."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: filter
+          required: false
+          schema: { type: string }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -X POST "http://SOFTPHONE_IP:8080/reload_sips?secret=SECRET&filter=1111"
+      responses:
+        "200":
+          description: Text result
+          content:
+            text/html:
+              schema: { type: string }
+              example: "Reloaded 3 configs"
+
+  /current_calls:
+    get:
+      summary: Get count of current calls per config
+      description: "Вернёт объект: { \"<configId>\": <число_активных_звонков>, ... }"
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl "http://SOFTPHONE_IP:8080/current_calls?secret=SECRET"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { type: integer }
+              example:
+                "11111111-1111-1111-1111-111111111111": 1
+                "22222222-2222-2222-2222-222222222222": 0
+
+  /get_audio:
+    get:
+      summary: Download stored WAV
+      description: "Скачать сохранённый WAV (контент-тип audio/wave). После загрузки файла можно использовать этот URL в команде say: message.url."
+      security: [{ BearerAuth: [] }, { QuerySecret: [] }]
+      parameters:
+        - in: query
+          name: config_id
+          required: true
+          schema: { $ref: "#/components/schemas/Uuid" }
+        - in: query
+          name: file_name
+          required: true
+          schema: { type: string }
+      x-codeSamples:
+        - lang: cURL
+          source: |
+            curl -OJ "http://SOFTPHONE_IP:8080/get_audio?secret=SECRET&config_id=11111111-1111-1111-1111-111111111111&file_name=hello.wav"
+      responses:
+        "200":
+          description: WAV file
+          content:
+            audio/wave: { schema: { type: string, format: binary } }
+        "404": { description: Not found }
