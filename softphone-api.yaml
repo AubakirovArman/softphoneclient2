@@ -364,7 +364,7 @@ paths:
                   configId: "11111111-1111-1111-1111-111111111111"
                   phone: "+77011234567"
                   targetUri: "tel:+78005553535"
-              set_config:
+      set_config:
                 summary: Создать/обновить SIP-конфиг
                 value:
                   type: setConfig
@@ -372,7 +372,8 @@ paths:
                   config:
                     authenticationId: "1001"
                     registerPassword: "S3cret!"
-                    hostUri: { hostUri: "sip.my-voip.com" }
+        # В новом UI указываем hostUri строкой
+        hostUri: "sip.my-voip.com:5060"
                     callerId: "+77010001122"
                     settings:
                       language: "ru-RU"

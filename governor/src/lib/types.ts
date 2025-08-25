@@ -6,14 +6,16 @@ export interface SoftphoneConfig {
   authenticationUri?: string;
   registerRefresh?: number;
   callerId?: string;
-  hostUri?: HostUri;
+  // hostUri must be a string like "sip.sipout.net" or "sip.sipout.net:5060"
+  hostUri?: string;
   proxyUri?: ProxyUri;
   settings?: SoftphoneSettings;
 }
 
-export type HostUri = 
-  | { hostUri: string }
-  | { domainHost: string; domainPort: number };
+// Legacy types kept for reference only. Governor now uses string hostUri everywhere.
+// export type HostUri =
+//   | { hostUri: string }
+//   | { domainHost: string; domainPort: number };
 
 export type ProxyUri = 
   | { proxyUri: string }
@@ -127,6 +129,18 @@ export interface SayPayload {
   interruptionWindow?: SayInterruptionWindow;
 }
 
+// Alternative 'say' payload used by current softphone build: top-level text instead of nested message
+export interface SayTextPayload {
+  type: 'say';
+  configId: string;
+  phone: string;
+  text: string;
+  messageId: string;
+  taskId?: number;
+  dialogId?: string;
+  interruptionWindow?: SayInterruptionWindow;
+}
+
 export interface SayInterruptionWindow {
   start: { time: number } | { fraction: number };
   end: { time: number } | { fraction: number };
@@ -174,6 +188,7 @@ export interface RemoveConfigPayload {
 
 export type ChatIntegrationMessage = 
   | SayPayload
+  | SayTextPayload
   | HangUpPayload
   | ClearQueuePayload
   | DtmfPayload
@@ -184,4 +199,5 @@ export type ChatIntegrationMessage =
 export interface AppConfig {
   softphoneUrl: string;
   softphoneSecret: string;
+  softphoneBearer?: string;
 }

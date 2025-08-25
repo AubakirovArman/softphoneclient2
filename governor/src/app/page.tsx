@@ -8,8 +8,9 @@ import { SoftphoneEndpoints } from '@/components/SoftphoneEndpoints';
 export default function Page() {
   const [active, setActive] = useState('configs');
   const [configs, setConfigs] = useState<Record<string, any>>({});
-  const [softphoneUrl, setSoftphoneUrl] = useState('http://localhost:8080');
+  const [softphoneUrl, setSoftphoneUrl] = useState('http://35.233.3.128');
   const [secret, setSecret] = useState('');
+  const [bearer, setBearer] = useState('22331c91-259e-4d91-baa1-42019546982f');
   const [logs, setLogs] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -17,9 +18,12 @@ export default function Page() {
     const res = await fetch('/api/admin/configs');
     const data = await res.json();
     setConfigs(data);
-    const cfgRes = await fetch('/api/app_config');
+  const cfgRes = await fetch('/api/app_config');
     const cfg = await cfgRes.json();
     setSoftphoneUrl(cfg.softphoneUrl);
+  // Do not prefill secrets if masked
+  if (cfg.softphoneSecret && cfg.softphoneSecret !== '***') setSecret(cfg.softphoneSecret);
+  if (cfg.softphoneBearer && cfg.softphoneBearer !== '***') setBearer(cfg.softphoneBearer);
   };
 
   useEffect(() => { load(); }, []);
@@ -48,8 +52,9 @@ export default function Page() {
   };
 
   const saveAppCfg = async () => {
-    await fetch('/api/app_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ softphoneUrl, softphoneSecret: secret }) });
+    await fetch('/api/app_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ softphoneUrl, softphoneSecret: secret, softphoneBearer: bearer }) });
     setSecret('');
+    setBearer('22331c91-259e-4d91-baa1-42019546982f');
   };
 
   return (
@@ -63,6 +68,10 @@ export default function Page() {
           <div className="grow">
             <div className="label">Secret (query)</div>
             <input className="input" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="optional secret" />
+          </div>
+          <div className="grow">
+            <div className="label">Bearer (Authorization)</div>
+            <input className="input" value={bearer} onChange={(e) => setBearer(e.target.value)} placeholder="22331c91-..." />
           </div>
           <button className="btn" onClick={saveAppCfg}>Save</button>
         </div>
@@ -86,8 +95,9 @@ export default function Page() {
               {Object.keys(configs).length === 0 && <div className="text-black">No configs yet</div>}
               {Object.entries(configs).map(([id, cfg]) => {
                 const config = cfg as any;
-                const hostInfo = config.hostUri?.hostUri || 
-                  (config.hostUri?.domainHost ? `${config.hostUri.domainHost}:${config.hostUri.domainPort}` : 'Not set');
+                const hostInfo = typeof config.hostUri === 'string'
+                  ? config.hostUri
+                  : (config.hostUri?.hostUri || (config.hostUri?.domainHost ? `${config.hostUri.domainHost}:${config.hostUri.domainPort}` : 'Not set'));
                 const proxyInfo = config.proxyUri?.proxyUri || 
                   (config.proxyUri?.proxy ? `${config.proxyUri.proxy.host}:${config.proxyUri.proxy.port}` : 'Not set');
                 
@@ -218,7 +228,7 @@ export default function Page() {
 
       {active === 'control' && (
         <div className="card">
-          <SoftphoneControl />
+          <SoftphoneControl configs={configs} />
         </div>
       )}
 

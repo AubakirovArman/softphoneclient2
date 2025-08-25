@@ -54,8 +54,8 @@ export function SoftphoneActions({ configId, phone }: SoftphoneActionsProps) {
       configId,
       phone,
       messageId: id,
-      message: { text: messageText }
-    });
+      text: messageText
+    } as any);
   };
 
   const sendSayUrl = () => {

@@ -14,11 +14,8 @@ const schema = z.object({
   registerRefresh: z.coerce.number().int().min(1).optional(),
   callerId: z.string().optional(),
   
-  // hostUri options
-  hostUriType: z.enum(['single', 'domain']),
-  hostUri: z.string().optional(),
-  domainHost: z.string().optional(),
-  domainPort: z.coerce.number().int().min(1).max(65535).optional(),
+  // hostUri as a single string like "sip.domain[:port]"
+  hostUri: z.string().min(1, 'Обязательное поле hostUri'),
   
   // proxyUri options
   proxyUriType: z.enum(['uri', 'host_port']),
@@ -58,7 +55,6 @@ export function ConfigForm({ onSaved, initialId, initialConfig }: { onSaved: () 
     resolver: zodResolver(schema) as any,
     defaultValues: {
       configId: uuidv4(),
-      hostUriType: 'single',
       proxyUriType: 'uri',
       vad: 'algorithmic',
       synthesisService: 'yandex',
@@ -82,14 +78,13 @@ export function ConfigForm({ onSaved, initialId, initialConfig }: { onSaved: () 
     if (cfg.registerRefresh) setValue('registerRefresh', cfg.registerRefresh);
     if (cfg.callerId) setValue('callerId', cfg.callerId);
 
-    // hostUri
-    if (cfg.hostUri && 'hostUri' in cfg.hostUri) {
-      setValue('hostUriType', 'single');
-      setValue('hostUri', cfg.hostUri.hostUri);
-    } else if (cfg.hostUri && 'domainHost' in cfg.hostUri) {
-      setValue('hostUriType', 'domain');
-      setValue('domainHost', (cfg.hostUri as any).domainHost);
-      setValue('domainPort', (cfg.hostUri as any).domainPort);
+    // hostUri as string; support legacy object shape for backward compatibility
+    const h: any = (cfg as any).hostUri;
+    if (typeof h === 'string') {
+      setValue('hostUri', h);
+    } else if (h && typeof h === 'object') {
+      if ('hostUri' in h) setValue('hostUri', h.hostUri);
+      else if ('domainHost' in h) setValue('hostUri', `${h.domainHost}${h.domainPort ? `:${h.domainPort}` : ''}`);
     }
 
     // proxyUri
@@ -134,7 +129,6 @@ export function ConfigForm({ onSaved, initialId, initialConfig }: { onSaved: () 
     setShowAdvanced(true);
   }, [initialConfig, initialId, setValue]);
 
-  const hostUriType = watch('hostUriType');
   const proxyUriType = watch('proxyUriType');
   const synthesisService = watch('synthesisService');
 
@@ -149,12 +143,8 @@ export function ConfigForm({ onSaved, initialId, initialConfig }: { onSaved: () 
     if (data.registerRefresh) cfg.registerRefresh = data.registerRefresh;
     if (data.callerId) cfg.callerId = data.callerId;
 
-    // hostUri
-    if (data.hostUriType === 'single' && data.hostUri) {
-      cfg.hostUri = { hostUri: data.hostUri };
-    } else if (data.hostUriType === 'domain' && data.domainHost && data.domainPort) {
-      cfg.hostUri = { domainHost: data.domainHost, domainPort: data.domainPort };
-    }
+  // hostUri as string
+  if (data.hostUri) cfg.hostUri = data.hostUri;
 
     // proxyUri
     if (data.proxyUriType === 'uri' && data.proxyUri) {
@@ -268,29 +258,9 @@ export function ConfigForm({ onSaved, initialId, initialConfig }: { onSaved: () 
 
       {/* Host URI конфигурация */}
       <div className="space-y-3">
-        <div className="label">Host URI Configuration</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <select className="input" {...register('hostUriType')}>
-              <option value="single">Single URI</option>
-              <option value="domain">Domain + Port</option>
-            </select>
-          </div>
-          {hostUriType === 'single' ? (
-            <div className="md:col-span-2">
-              <input className="input" placeholder="sip.example.com" {...register('hostUri')} />
-            </div>
-          ) : (
-            <>
-              <div>
-                <input className="input" placeholder="domain.example.com" {...register('domainHost')} />
-              </div>
-              <div>
-                <input className="input" type="number" placeholder="5060" {...register('domainPort')} />
-              </div>
-            </>
-          )}
-        </div>
+        <div className="label">Host URI</div>
+        <input className="input" placeholder="sip.sipout.net or sip.sipout.net:5060" {...register('hostUri')} />
+        {errors.hostUri && <div className="text-red-600 text-xs mt-1">{errors.hostUri.message as any}</div>}
       </div>
 
       {/* Proxy URI конфигурация */}

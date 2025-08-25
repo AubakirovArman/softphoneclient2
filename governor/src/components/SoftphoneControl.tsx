@@ -2,8 +2,12 @@
 import { useEffect, useState } from 'react';
 import { SoftphoneActions } from '@/components/SoftphoneActions';
 
-export function SoftphoneControl() {
-  const [cfgs, setCfgs] = useState<Record<string, any>>({});
+interface SoftphoneControlProps {
+  configs?: Record<string, any>;
+}
+
+export function SoftphoneControl({ configs }: SoftphoneControlProps) {
+  const [cfgs, setCfgs] = useState<Record<string, any>>(configs || {});
   const [configId, setConfigId] = useState('');
   const [phone, setPhone] = useState('');
 
@@ -13,7 +17,8 @@ export function SoftphoneControl() {
     setCfgs(data);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!configs) load(); }, []);
+  useEffect(() => { if (configs) setCfgs(configs); }, [configs]);
 
   return (
     <div className="space-y-6">
@@ -31,7 +36,7 @@ export function SoftphoneControl() {
         </div>
       </div>
 
-      <SoftphoneActions configId={configId} phone={phone} />
+  <SoftphoneActions configId={configId} phone={phone} />
     </div>
   );
 }

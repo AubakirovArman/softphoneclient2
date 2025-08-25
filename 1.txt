@@ -1,0 +1,10 @@
+curl -X POST "http://35.233.3.128/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer 22331c91-259e-4d91-baa1-42019546982f" \
+  -d '{
+    "type": "say",
+    "configId": "091e84de-44e0-44ed-b039-14ed454fde0d",
+    "phone": "+77024986032",
+    "messageId": "m-1755574367583",
+    "message": "привет это арман как ты"
+  }'

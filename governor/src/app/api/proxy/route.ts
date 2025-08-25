@@ -8,6 +8,9 @@ export async function POST(req: NextRequest) {
     await sendToSoftphone(body);
     return new NextResponse('Accepted');
   } catch (e: any) {
-    return new NextResponse(e?.message || 'Error', { status: 400 });
+  const msg = e?.message || 'Error';
+  const match = typeof msg === 'string' ? msg.match(/Softphone error (\d+):/) : null;
+  const status = match ? parseInt(match[1], 10) : 400;
+  return new NextResponse(msg, { status });
   }
 }
